@@ -1,20 +1,20 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Core.Attributes;
+using CounterStrikeSharp.API.Core.Attributes.Registration;
 using Timer = CounterStrikeSharp.API.Modules.Timers.Timer;
 
-using AutoC4Giver.Config;
 using AutoC4Giver.Utils;
+using AutoC4Giver.Config;
 
 namespace AutoC4Giver;
 
-[MinimumApiVersion(305)]
+[MinimumApiVersion(369)]
 public class AutoC4Giver : BasePlugin, IPluginConfig<BaseConfigs>
 {
 	public override string ModuleName => "AutoC4Giver";
-	public override string ModuleVersion => "1.0.0";
+	public override string ModuleVersion => "1.0.1";
 	public override string ModuleAuthor => "luca.uy";
 	public override string ModuleDescription => "Automatically transfers the C4 to a nearby alive teammate if it's dropped shortly after spawn";
 
@@ -27,21 +27,21 @@ public class AutoC4Giver : BasePlugin, IPluginConfig<BaseConfigs>
 	public void OnConfigParsed(BaseConfigs config)
 	{
 		Config = config;
-		Debug.Config = config;
+		Utils.Logger.Config = config;
 	}
 
 	public override void Load(bool hotReload)
 	{
-		Debug.DebugMessage("Plugin loaded successfully!");
-		Debug.DebugInfo("Config", $"Spawn Duration: {Config.SpawnDuration}s");
-		Debug.DebugInfo("Config", $"Transfer Delay: {Config.TransferDelay}s");
-		Debug.DebugInfo("Config", $"Debug Enabled: {Config.EnableDebug}");
+		Utils.Logger.LogDebug("Core", "Plugin loaded successfully!");
+		Utils.Logger.LogInfo("Config", $"Spawn Duration: {Config.SpawnDuration}s");
+		Utils.Logger.LogInfo("Config", $"Transfer Delay: {Config.TransferDelay}s");
+		Utils.Logger.LogInfo("Config", $"Debug Enabled: {Config.EnableDebug}");
 	}
 
 	[GameEventHandler]
 	public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
 	{
-		Debug.DebugInfo("RoundStart", "Round started, initializing spawn period timer");
+		Utils.Logger.LogInfo("Events [RoundStart]", "Round started, initializing spawn period timer");
 
 		_isInSpawnPeriod = true;
 		_playersWhoDroppedC4.Clear();
@@ -50,7 +50,7 @@ public class AutoC4Giver : BasePlugin, IPluginConfig<BaseConfigs>
 		_spawnTimer = AddTimer(Config.SpawnDuration, () =>
 		{
 			_isInSpawnPeriod = false;
-			Debug.DebugInfo("Timer", $"Spawn period ended after {Config.SpawnDuration} seconds");
+			Utils.Logger.LogInfo("Events [Timer]", $"Spawn period ended after {Config.SpawnDuration} seconds");
 		});
 
 		return HookResult.Continue;
@@ -59,7 +59,7 @@ public class AutoC4Giver : BasePlugin, IPluginConfig<BaseConfigs>
 	[GameEventHandler]
 	public HookResult OnRoundEnd(EventRoundEnd @event, GameEventInfo info)
 	{
-		Debug.DebugInfo("RoundEnd", "Round ended, cleaning up");
+		Utils.Logger.LogInfo("Events [RoundEnd]", "Round ended, cleaning up");
 
 		_spawnTimer?.Kill();
 		_spawnTimer = null;
@@ -78,7 +78,7 @@ public class AutoC4Giver : BasePlugin, IPluginConfig<BaseConfigs>
 		if (!PlayerUtils.IsValidPlayer(player) || item != "weapon_c4" || player?.Team != CsTeam.Terrorist)
 			return HookResult.Continue;
 
-		Debug.DebugInfo("ItemPickup", $"Terrorist {player?.PlayerName} picked up C4");
+		Utils.Logger.LogInfo("Events [ItemPickup]", $"Terrorist {player?.PlayerName} picked up C4");
 
 		if (player != null)
 		{
@@ -109,7 +109,7 @@ public class AutoC4Giver : BasePlugin, IPluginConfig<BaseConfigs>
 			_playersWhoDroppedC4.Remove(player);
 		}
 
-		Debug.DebugInfo("PlayerDeath", $"Terrorist {player?.PlayerName} died - C4 will remain on ground if dropped");
+		Utils.Logger.LogInfo("Events [PlayerDeath]", $"Terrorist {player?.PlayerName} died - C4 will remain on ground if dropped");
 
 		return HookResult.Continue;
 	}
@@ -119,30 +119,30 @@ public class AutoC4Giver : BasePlugin, IPluginConfig<BaseConfigs>
 		if (!_isInSpawnPeriod)
 			return;
 
-		Debug.DebugInfo("CheckDroppedC4", "Checking for dropped C4 on the ground");
+		Utils.Logger.LogInfo("CheckDroppedC4", "Checking for dropped C4 on the ground");
 
 		var c4Entities = Utilities.FindAllEntitiesByDesignerName<CC4>("weapon_c4");
 		foreach (var c4 in c4Entities)
 		{
 			if (c4?.OwnerEntity?.Value == null && c4?.AbsOrigin != null)
 			{
-				Debug.DebugInfo("CheckDroppedC4", "Found C4 on the ground, looking for recipient");
+				Utils.Logger.LogInfo("CheckDroppedC4", "Found C4 on the ground, looking for recipient");
 
 				var nearestTerrorist = PlayerUtils.FindNearestAliveTerrorist(c4.AbsOrigin, _playersWhoDroppedC4);
 				if (nearestTerrorist != null)
 				{
-					Debug.DebugInfo("CheckDroppedC4", $"Transferring C4 to {nearestTerrorist.PlayerName}");
+					Utils.Logger.LogInfo("CheckDroppedC4", $"Transferring C4 to {nearestTerrorist.PlayerName}");
 
 					c4.Remove();
 
 					PlayerUtils.GiveC4ToPlayer(nearestTerrorist);
 					nearestTerrorist.PrintToChat($"{Localizer["prefix"]} {Localizer["autoc4giver.c4_received"]}");
 
-					Debug.DebugInfo("CheckDroppedC4", $"C4 successfully transferred to {nearestTerrorist.PlayerName}");
+					Utils.Logger.LogInfo("CheckDroppedC4", $"C4 successfully transferred to {nearestTerrorist.PlayerName}");
 				}
 				else
 				{
-					Debug.DebugWarning("No eligible terrorists found to transfer C4 to (excluding players who dropped it)");
+					Utils.Logger.LogWarning("CheckDroppedC4", "No eligible terrorists found to transfer C4 to (excluding players who dropped it)");
 				}
 
 				break;
@@ -157,12 +157,12 @@ public class AutoC4Giver : BasePlugin, IPluginConfig<BaseConfigs>
 		if (!PlayerUtils.IsValidPlayer(player))
 			return HookResult.Continue;
 
-		Debug.DebugInfo("BombDropped", $"Player {player?.PlayerName} dropped the bomb");
+		Utils.Logger.LogInfo("Events [BombDropped]", $"Player {player?.PlayerName} dropped the bomb");
 
 		if (player != null && _isInSpawnPeriod)
 		{
 			_playersWhoDroppedC4.Add(player);
-			Debug.DebugInfo("BombDropped", $"Added {player.PlayerName} to exclusion list for C4 transfer");
+			Utils.Logger.LogInfo("Events [BombDropped]", $"Added {player.PlayerName} to exclusion list for C4 transfer");
 
 			AddTimer(Config.TransferDelay, CheckForDroppedC4);
 		}
@@ -174,6 +174,6 @@ public class AutoC4Giver : BasePlugin, IPluginConfig<BaseConfigs>
 	{
 		_spawnTimer?.Kill();
 		_playersWhoDroppedC4.Clear();
-		Debug.DebugMessage("Plugin unloaded");
+		Utils.Logger.LogDebug("Core", "Plugin unloaded");
 	}
 }

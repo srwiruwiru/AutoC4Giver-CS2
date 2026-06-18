@@ -1,7 +1,7 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Entities.Constants;
 using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Modules.Entities.Constants;
 
 namespace AutoC4Giver.Utils;
 
@@ -9,18 +9,12 @@ public static class PlayerUtils
 {
     public static bool IsValidPlayer(CCSPlayerController? player)
     {
-        return player != null &&
-               player.IsValid &&
-               !player.IsBot &&
-               player.Connected == PlayerConnectedState.PlayerConnected;
+        return player != null && player.IsValid && !player.IsBot && player.Connected == PlayerConnectedState.Connected;
     }
 
     public static bool IsPlayerAlive(CCSPlayerController player)
     {
-        return player.PlayerPawn?.Value != null &&
-               player.PlayerPawn.Value.IsValid &&
-               player.PlayerPawn.Value.Health > 0 &&
-               player.PawnIsAlive;
+        return player.PlayerPawn?.Value != null && player.PlayerPawn.Value.IsValid && player.PlayerPawn.Value.Health > 0 && player.PawnIsAlive;
     }
 
     public static float GetDistance(Vector pos1, Vector pos2)
@@ -44,14 +38,13 @@ public static class PlayerUtils
     {
         if (!IsValidPlayer(player))
         {
-            Debug.DebugWarning($"Attempted to give C4 to invalid player");
+            Logger.LogWarning("GiveC4ToPlayer", "Attempted to give C4 to invalid player");
             return;
         }
 
         try
         {
-            Debug.DebugInfo("GiveC4", $"Giving C4 to player {player.PlayerName}");
-
+            Logger.LogDebug("GiveC4ToPlayer", $"Giving C4 to player {player.PlayerName}");
             player.GiveNamedItem(CsItem.Bomb);
 
             Server.NextFrame(() =>
@@ -59,13 +52,13 @@ public static class PlayerUtils
                 if (IsValidPlayer(player))
                 {
                     player.ExecuteClientCommand("slot5");
-                    Debug.DebugInfo("GiveC4", $"C4 given to {player.PlayerName} and switched to slot 5");
+                    Logger.LogDebug("GiveC4ToPlayer", $"C4 given to {player.PlayerName} and switched to slot 5");
                 }
             });
         }
         catch (Exception ex)
         {
-            Debug.DebugError($"Error giving C4 to player {player.PlayerName}: {ex.Message}");
+            Logger.LogError("GiveC4ToPlayer", $"Error giving C4 to player {player.PlayerName}: {ex.Message}");
         }
     }
 
@@ -73,51 +66,41 @@ public static class PlayerUtils
     {
         excludePlayers ??= new HashSet<CCSPlayerController>();
 
-        return Utilities.GetPlayers()
-            .Where(p => IsValidPlayer(p) &&
-                        p.Team == CsTeam.Terrorist &&
-                        IsPlayerAlive(p) &&
-                        !excludePlayers.Contains(p))
-            .ToList();
+        return Utilities.GetPlayers().Where(p => IsValidPlayer(p) && p.Team == CsTeam.Terrorist && IsPlayerAlive(p) && !excludePlayers.Contains(p)).ToList();
     }
 
     public static CCSPlayerController? FindNearestAliveTerrorist(Vector position, HashSet<CCSPlayerController>? excludePlayers = null, bool use2D = false)
     {
         var terrorists = GetAliveTerrorists(excludePlayers);
-
         if (!terrorists.Any())
         {
-            Debug.DebugWarning("No eligible terrorists found");
+            Logger.LogWarning("GetAliveTerrorists", "No eligible terrorists found");
             return null;
         }
 
         CCSPlayerController? nearestPlayer = null;
         float nearestDistance = float.MaxValue;
 
-        Debug.DebugInfo("FindNearest", $"Looking for terrorists near position: {position.X:F2}, {position.Y:F2}, {position.Z:F2}");
-        Debug.DebugInfo("FindNearest", $"Found {terrorists.Count} eligible terrorists");
+        Logger.LogDebug("FindNearest", $"Looking for terrorists near position: {position.X:F2}, {position.Y:F2}, {position.Z:F2}");
+        Logger.LogDebug("FindNearest", $"Found {terrorists.Count} eligible terrorists");
 
         foreach (var terrorist in terrorists)
         {
             if (terrorist.PlayerPawn?.Value?.AbsOrigin == null)
                 continue;
 
-            var distance = use2D
-                ? GetDistance2D(position, terrorist.PlayerPawn.Value.AbsOrigin)
-                : GetDistance(position, terrorist.PlayerPawn.Value.AbsOrigin);
-
-            Debug.DebugInfo("FindNearest", $"Player {terrorist.PlayerName} is {distance:F2} units away");
-
+            var distance = use2D ? GetDistance2D(position, terrorist.PlayerPawn.Value.AbsOrigin) : GetDistance(position, terrorist.PlayerPawn.Value.AbsOrigin);
             if (distance < nearestDistance)
             {
                 nearestDistance = distance;
                 nearestPlayer = terrorist;
             }
+            Logger.LogDebug("FindNearest", $"Player {terrorist.PlayerName} is {distance:F2} units away");
         }
 
         if (nearestPlayer != null)
         {
-            Debug.DebugInfo("FindNearest", $"Nearest player: {nearestPlayer.PlayerName} at {nearestDistance:F2} units");
+            Logger.LogDebug("FindNearest", $"Nearest player: {nearestPlayer.PlayerName} at {nearestDistance:F2} units");
         }
 
         return nearestPlayer;
@@ -141,5 +124,4 @@ public static class PlayerUtils
 
         return player.PlayerPawn?.Value?.AbsOrigin;
     }
-
 }
